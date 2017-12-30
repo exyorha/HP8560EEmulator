@@ -6,6 +6,7 @@ extern "C" {
 
 #include "HP8560E.h"
 
+#include <QTime>
 
 std::unique_ptr<HP8560E> machine;
 
@@ -89,10 +90,37 @@ void SimulatorThread::run() {
     m68k_set_int_ack_callback(m68k_int_callback);
     m68k_pulse_reset();
 
+    unsigned int totalCycles = 0;
+    QTime cycleTime;
+    cycleTime.start();
+
+    int slice = 100;
+
     while(!isInterruptionRequested()) {
         unsigned int cycles = m68k_execute(32);
 
         machine->cycles(cycles);
+
+        totalCycles += cycles;
+        if(totalCycles > 1600000) {
+            int elapsed = cycleTime.restart();
+
+            if(elapsed < slice) {
+                int toSleep = slice - elapsed;
+
+                msleep(toSleep);
+                int sleepElapsed = cycleTime.restart();
+
+                if(sleepElapsed > toSleep)
+                    slice = 100 - (sleepElapsed - toSleep);
+                else
+                    slice = 100;
+            } else {
+                slice = 100;
+            }
+
+            totalCycles = 0;
+        }
     }
 }
 
